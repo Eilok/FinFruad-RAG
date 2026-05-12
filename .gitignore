@@ -1,55 +1,150 @@
 # ==========================================================================
-# 1. Python 自动生成文件
+# 1. Python 项目（自动生成、虚拟环境、编译文件）
 # ==========================================================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
+# 虚拟环境
 venv/
+.env/
+.venv/
 ENV/
 env/
-.venv/
 
 # ==========================================================================
-# 2. 编辑器、IDE 配置文件
+# 2. 前端 Web 项目（核心新增！适配所有前端框架）
+# ==========================================================================
+# 前端依赖包（最大的忽略项，必须加）
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# 前端构建/打包产物（编译后的静态文件）
+dist/
+build/
+out/
+.output/
+.nuxt/
+.next/
+.astro/
+public/static/
+
+# 前端环境变量（敏感信息，绝对不上传）
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 前端缓存、校验、测试文件
+.eslintcache
+.stylelintcache
+.coverage/
+coverage/
+.temp/
+.tmp/
+
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+
+# ==========================================================================
+# 3. 编辑器 / IDE 配置文件（个人配置，不同步）
 # ==========================================================================
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+.idea_modules/
 
 # ==========================================================================
-# 3. 操作系统自动生成文件
+# 4. 操作系统 自动生成文件
 # ==========================================================================
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
+
+# Windows
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
 # ==========================================================================
-# 4. 日志、输出、缓存
+# 5. 日志、输出、缓存、模型权重文件
 # ==========================================================================
 logs/
 *.log
+output/
 outputs/
 result/
+results/
 tmp/
 temp/
+
+# 机器学习模型文件
 *.pkl
 *.npy
 *.h5
 *.ckpt
 *.pt
 *.pth
+*.bin
+*.onnx
 
 # ==========================================================================
-# 5. 大文件、数据集、敏感信息（你最需要的）
+# 6. 大文件、数据集、敏感数据（禁止上传）
 # ==========================================================================
 data/**/*
 data/*
+dataset/
+datasets/
+*.zip
+*.rar
+*.tar.gz
