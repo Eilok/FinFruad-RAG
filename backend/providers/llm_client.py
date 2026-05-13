@@ -3,6 +3,7 @@
 from openai import OpenAI
 
 from backend.core.settings import settings
+from backend.models.api import DetectionResult
 from backend.models.knowledge import ScamAnalysis
 
 PROMPT = """
@@ -49,14 +50,6 @@ Requirements:
 - Summarize fraudulent tactics
 - Do not use complete sentences
 
-Example:
-[
-  "High return promise",
-  "Expert-led trading",
-  "Urgent transfer request",
-  "Fake customer support"
-]
-
 `risk_keywords`:
 List of risk keywords.
 
@@ -64,16 +57,6 @@ Requirements:
 - Must be an array of strings
 - Each item must be a high-risk phrase or keyword
 - Used for subsequent keyword matching
-
-Example:
-[
-  "Guaranteed profit",
-  "Risk-free return",
-  "No experience needed",
-  "Earn $500 daily",
-  "Transfer immediately"
-]
-
 
 ## Output Requirements
 
@@ -86,38 +69,68 @@ You must strictly output a JSON object in the following format:
   "risk_keywords": []
 }
 
-Do not output:
-- markdown
-- comments
-- explanations
-- extra text
-- ```json
-- formatting instructions
-
-If any field cannot be extracted:
-- Return "Unknown" for string fields
-- Return [] for array fields
-
-The final output must be valid JSON that can be correctly parsed by Python json.loads().
+Do not output markdown, comments, explanations, or extra text.
+If any field cannot be extracted, return "Unknown" for string fields and [] for array fields.
 """
+
+DETECT_PROMPT = """
+You are a financial fraud risk decision engine.
+
+You are given:
+1) A user input text.
+2) Retrieved evidence from a fraud knowledge base.
+
+Task:
+Judge whether the user text is likely fraud-related.
+
+Output JSON format only:
+{
+  "is_scam": true,
+  "confidence": 0.0,
+  "reason": "...",
+  "evidence_refs": ["record_id_1", "record_id_2"]
+}
+
+Rules:
+- confidence must be in [0, 1].
+- reason should be concise and based on both text and evidence.
+- evidence_refs should reference the most relevant evidence ids; return [] if none is useful.
+- Output JSON only.
+"""
+
 
 class LLMAnalyzer:
     def __init__(self) -> None:
         self.client = OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url or None)
 
     def analyze(self, text: str) -> ScamAnalysis:
-        prompt = PROMPT.strip()
         response = self.client.chat.completions.create(
             model=settings.llm_model,
             temperature=0,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": prompt},
+                {"role": "system", "content": PROMPT.strip()},
                 {"role": "user", "content": text},
             ],
         )
         content = response.choices[0].message.content or "{}"
         return self._parse_analysis(content, original_text=text)
+
+    def detect(self, text: str, evidence_context: str) -> DetectionResult:
+        response = self.client.chat.completions.create(
+            model=settings.llm_model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": DETECT_PROMPT.strip()},
+                {
+                    "role": "user",
+                    "content": f"Input text:\n{text}\n\nRetrieved evidence:\n{evidence_context}",
+                },
+            ],
+        )
+        content = response.choices[0].message.content or "{}"
+        return self._parse_detection(content)
 
     @staticmethod
     def _parse_analysis(content: str, original_text: str) -> ScamAnalysis:
@@ -140,4 +153,26 @@ class LLMAnalyzer:
             category=category,
             patterns=patterns,
             risk_keywords=risk_keywords,
+        )
+
+    @staticmethod
+    def _parse_detection(content: str) -> DetectionResult:
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            payload = {}
+
+        is_scam = bool(payload.get("is_scam", False))
+        confidence = float(payload.get("confidence", 0.0))
+        confidence = max(0.0, min(1.0, confidence))
+        reason = str(payload.get("reason") or "Insufficient evidence.").strip() or "Insufficient evidence."
+
+        refs_raw = payload.get("evidence_refs") or []
+        evidence_refs = [str(x).strip() for x in refs_raw if str(x).strip()] if isinstance(refs_raw, list) else []
+
+        return DetectionResult(
+            is_scam=is_scam,
+            confidence=confidence,
+            reason=reason,
+            evidence_refs=evidence_refs,
         )

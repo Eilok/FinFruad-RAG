@@ -4,6 +4,8 @@ from chromadb.api.models.Collection import Collection
 from backend.core.settings import settings
 from backend.models.knowledge import KnowledgeRecord
 
+import os
+os.environ["CHROMA_TELEMETRY_DISABLED"] = "true"
 
 class ChromaKnowledgeStore:
     def __init__(self) -> None:
@@ -29,6 +31,16 @@ class ChromaKnowledgeStore:
                 }
             ],
         )
+
+    def query_by_embedding(self, query_embedding: list[float], top_k: int) -> dict:
+        return self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k,
+            include=["metadatas", "documents", "distances"],
+        )
+
+    def fetch_all(self) -> dict:
+        return self.collection.get(include=["metadatas", "documents"])
 
     def count(self) -> int:
         return self.collection.count()

@@ -6,18 +6,19 @@
 
 - [x] 阶段01：项目初始化与骨架搭建
 - [x] 阶段02：离线知识库构建流水线
-- [ ] 阶段03：在线双检索与判别服务
+- [x] 阶段03：在线双检索与判别服务
 - [ ] 阶段04：前端页面与交互集成
 - [ ] 阶段05：自动化评估与实验日志
 - [ ] 阶段06：统一交付与可运维性完善
 
-## 当前项目结构（阶段02）
+## 当前项目结构（阶段03）
 
 ```text
 .
 ├─ backend/
 │  ├─ app.py
 │  ├─ core/
+│  │  ├─ detect.py
 │  │  ├─ health.py
 │  │  ├─ ingest.py
 │  │  ├─ logging_utils.py
@@ -31,6 +32,7 @@
 │  ├─ scripts/
 │  │  └─ ingest_kb.py
 │  ├─ service/
+│  │  ├─ detect.py
 │  │  ├─ health.py
 │  │  └─ kb.py
 │  └─ storage/
@@ -43,7 +45,7 @@
 └─ .env.example
 ```
 
-说明：`backend/service` 仅放接口层代码，离线构建流程在 `backend/core`。
+说明：`backend/service` 仅放接口层代码；检索、融合与判别流程在 `backend/core`。
 
 ## 环境准备
 
@@ -93,7 +95,7 @@ curl http://localhost:8000/healthz
 
 ## 阶段02：离线知识库构建
 
-### A. API 方式导入
+### A. API 导入
 
 接口：`POST /kb/ingest`
 
@@ -111,86 +113,76 @@ curl http://localhost:8000/healthz
 }
 ```
 
-返回示例：
-
-```json
-{
-  "total": 1,
-  "success": 1,
-  "failed": 0,
-  "results": [
-    {
-      "record_id": "uuid",
-      "source": "manual",
-      "summary": "...",
-      "category": "招聘诈骗",
-      "risk_keywords": ["刷单", "垫付", "高收益"]
-    }
-  ],
-  "errors": []
-}
-```
-
-### B. CLI 方式导入
-
-单条文本：
+### B. CLI 导入
 
 ```bash
 uv run python -m backend.scripts.ingest_kb --text "高薪兼职无需经验，先交保证金" --source manual
 ```
 
-批量文件（jsonl 或纯文本逐行）：
+## 阶段03：在线双检索与判别
 
-```bash
-uv run python -m backend.scripts.ingest_kb --input-file data/sample_ingest.jsonl --source dataset --retry-times 2
-```
+接口：`POST /detect`
 
-jsonl 行格式示例：
+请求示例：
 
 ```json
-{"text":"高收益理财稳赚不赔，立即转账抢名额","source":"job_scams"}
+{
+  "text": "平台客服说我开通了会员，每月自动扣费，让我马上转账取消。",
+  "keyword_top_k": 3,
+  "vector_top_k": 3,
+  "return_evidence": true
+}
 ```
 
-## 阶段02测试方法
+返回字段：
+- `keyword_hits`：关键词通道召回结果（含匹配关键词与分数）
+- `vector_hits`：向量通道召回结果（含相似度分数）
+- `fused_hits`：融合排序结果
+- `detection`：最终判别
+  - `is_scam`：是否诈骗
+  - `confidence`：置信度（0~1）
+  - `reason`：判别原因
+  - `evidence_refs`：引用证据的 `record_id`
 
-### 测试1：结构化抽取字段完整性
+## 阶段03测试方法
 
-- 调用 `POST /kb/ingest` 导入单条诈骗文本。
-- 检查返回 `summary/category/risk_keywords` 是否存在。
+### 测试1：双通道召回
 
-### 测试2：摘要向量化与入库
+1. 先通过 `POST /kb/ingest` 导入若干诈骗样本。
+2. 调用 `POST /detect`。
+3. 检查 `keyword_hits` 与 `vector_hits` 是否都返回结果（若库中有可匹配内容）。
 
-- 导入后检查目录 `CHROMA_PERSIST_DIR` 已产生数据文件。
-- 再次导入不同文本，确认 `record_id` 不同且成功数增长。
+### 测试2：融合结果与结构化判别
 
-### 测试3：构建日志
+1. 检查 `fused_hits` 是否按 `score` 降序。
+2. 检查 `detection` 是否包含 `is_scam/confidence/reason/evidence_refs`。
 
-- 检查 `LOG_DIR/ingest.jsonl`。
-- 每次导入应追加一条 `success` 或 `failed` 记录，包含时间、来源与结果信息。
+### 测试3：失败场景
 
-## 常见报错排查（阶段02）
+1. 提交空文本，预期 HTTP 400。
+2. 模型不可用时，预期接口仍返回结构化结果（`detection.reason` 含 fallback 说明）。
 
-1. `SILICONFLOW_API_KEY 未配置`
-- 补齐 `.env` 中 `SILICONFLOW_API_KEY`。
+## 常见报错排查（阶段03）
 
-2. LLM 调用失败（401/404）
-- 检查 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY` 是否与服务商兼容。
+1. `Input text cannot be empty`
+- 检查请求体 `text` 是否为空。
 
-3. Chroma 初始化失败
-- 检查 `CHROMA_PERSIST_DIR` 路径权限。
+2. `Detection pipeline failed: ...`
+- 检查向量服务与 LLM 配置，确认 API Key、Base URL、Model 可用。
+
+3. 无召回结果
+- 先确认已执行离线入库，且 `CHROMA_PERSIST_DIR` 指向同一向量库目录。
 
 ## 当前依赖
 
-后端新增依赖：
+后端依赖：
+- `fastapi`
+- `uvicorn[standard]`
+- `pydantic-settings`
 - `openai`
 - `httpx`
 - `chromadb`
 
-已有依赖：
-- `fastapi`
-- `uvicorn[standard]`
-- `pydantic-settings`
-
 ## 下一阶段
 
-进入阶段03：在线双检索与判别服务。
+进入阶段04：前端页面与交互集成。
