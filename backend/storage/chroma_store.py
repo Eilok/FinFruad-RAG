@@ -4,23 +4,38 @@ from chromadb.api.models.Collection import Collection
 from backend.core.settings import settings
 from backend.models.knowledge import KnowledgeRecord
 
-import os
-os.environ["CHROMA_TELEMETRY_DISABLED"] = "true"
 
 class ChromaKnowledgeStore:
-    def __init__(self) -> None:
+    def __init__(self, collection_name: str | None = None) -> None:
         self.client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
+        self.collection_name = collection_name or settings.chroma_collection_name
         self.collection: Collection = self.client.get_or_create_collection(
-            name=settings.chroma_collection_name,
+            name=self.collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
+
+    def reset_collection(self) -> None:
+        try:
+            self.client.delete_collection(self.collection_name)
+        except Exception:  # noqa: BLE001
+            pass
+        self.collection = self.client.get_or_create_collection(
+            name=self.collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
+
+    def _rebind_collection(self) -> None:
+        self.collection = self.client.get_or_create_collection(
+            name=self.collection_name,
             metadata={"hnsw:space": "cosine"},
         )
 
     def upsert_record(self, record: KnowledgeRecord, embedding: list[float]) -> None:
-        self.collection.upsert(
-            ids=[record.record_id],
-            documents=[record.analysis.summary],
-            embeddings=[embedding],
-            metadatas=[
+        payload = {
+            "ids": [record.record_id],
+            "documents": [record.analysis.summary],
+            "embeddings": [embedding],
+            "metadatas": [
                 {
                     "source": record.source,
                     "category": record.analysis.category,
@@ -30,17 +45,38 @@ class ChromaKnowledgeStore:
                     "created_at": record.created_at,
                 }
             ],
-        )
+        }
+        try:
+            self.collection.upsert(**payload)
+        except Exception:  # noqa: BLE001
+            self._rebind_collection()
+            self.collection.upsert(**payload)
 
     def query_by_embedding(self, query_embedding: list[float], top_k: int) -> dict:
-        return self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k,
-            include=["metadatas", "documents", "distances"],
-        )
+        try:
+            return self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k,
+                include=["metadatas", "documents", "distances"],
+            )
+        except Exception:  # noqa: BLE001
+            self._rebind_collection()
+            return self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k,
+                include=["metadatas", "documents", "distances"],
+            )
 
     def fetch_all(self) -> dict:
-        return self.collection.get(include=["metadatas", "documents"])
+        try:
+            return self.collection.get(include=["metadatas", "documents"])
+        except Exception:  # noqa: BLE001
+            self._rebind_collection()
+            return self.collection.get(include=["metadatas", "documents"])
 
     def count(self) -> int:
-        return self.collection.count()
+        try:
+            return self.collection.count()
+        except Exception:  # noqa: BLE001
+            self._rebind_collection()
+            return self.collection.count()

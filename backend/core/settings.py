@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     chroma_persist_dir: str = "./backend/.chroma"
     chroma_collection_name: str = "scam_knowledge"
+    eval_collection_prefix: str = "scam_knowledge_eval"
 
     default_keyword_top_k: int = 3
     default_vector_top_k: int = 3

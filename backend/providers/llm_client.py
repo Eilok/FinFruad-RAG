@@ -98,6 +98,24 @@ Rules:
 - Output JSON only.
 """
 
+NO_RAG_PROMPT = """
+You are a financial fraud classifier.
+
+Given only the input text, decide if it is likely scam-related.
+Return JSON only:
+{
+  "is_scam": true,
+  "confidence": 0.0,
+  "reason": "...",
+  "evidence_refs": []
+}
+
+Rules:
+- Use only the input text. Do not assume external context.
+- confidence must be in [0,1].
+- Keep reason concise.
+"""
+
 
 class LLMAnalyzer:
     def __init__(self) -> None:
@@ -127,6 +145,19 @@ class LLMAnalyzer:
                     "role": "user",
                     "content": f"Input text:\n{text}\n\nRetrieved evidence:\n{evidence_context}",
                 },
+            ],
+        )
+        content = response.choices[0].message.content or "{}"
+        return self._parse_detection(content)
+
+    def detect_no_rag(self, text: str) -> DetectionResult:
+        response = self.client.chat.completions.create(
+            model=settings.llm_model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": NO_RAG_PROMPT.strip()},
+                {"role": "user", "content": text},
             ],
         )
         content = response.choices[0].message.content or "{}"

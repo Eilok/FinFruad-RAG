@@ -11,10 +11,10 @@ from backend.storage.chroma_store import ChromaKnowledgeStore
 
 
 class IngestPipeline:
-    def __init__(self) -> None:
+    def __init__(self, collection_name: str | None = None) -> None:
         self.llm = LLMAnalyzer()
         self.embedder = EmbeddingClient()
-        self.store = ChromaKnowledgeStore()
+        self.store = ChromaKnowledgeStore(collection_name=collection_name)
 
     def ingest_items(self, items: Iterable[IngestItem], retry_times: int | None = None) -> tuple[list[IngestResult], list[str]]:
         retries = settings.ingest_retry_times if retry_times is None else retry_times
