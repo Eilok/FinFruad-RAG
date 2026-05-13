@@ -11,11 +11,17 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_model: str = ""
 
-    embedding_model: str = ""
-    chroma_persist_dir: str = "./backend/.chroma"
+    siliconflow_api_key: str = ""
+    siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
+    embedding_model: str = "BAAI/bge-m3"
 
-    default_keyword_top_k: int = 5
-    default_vector_top_k: int = 5
+    chroma_persist_dir: str = "./backend/.chroma"
+    chroma_collection_name: str = "scam_knowledge"
+
+    default_keyword_top_k: int = 3
+    default_vector_top_k: int = 3
+
+    ingest_retry_times: int = 2
 
     log_level: str = "INFO"
     log_dir: str = "./backend/logs"

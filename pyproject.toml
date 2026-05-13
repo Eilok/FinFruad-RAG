@@ -1,11 +1,14 @@
-﻿[project]
+[project]
 name = "finfraud-rag"
 version = "0.1.0"
 description = "金融诈骗风险治理系统（RAG）"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "chromadb>=0.5.5,<1.0.0",
   "fastapi>=0.115.0,<1.0.0",
+  "httpx>=0.27.0,<1.0.0",
+  "openai>=1.40.0,<2.0.0",
+  "pydantic-settings>=2.4.0,<3.0.0",
   "uvicorn[standard]>=0.30.0,<1.0.0",
-  "pydantic-settings>=2.4.0,<3.0.0"
 ]
