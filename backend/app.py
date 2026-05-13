@@ -6,8 +6,19 @@ from backend.service.detect import router as detect_router
 from backend.service.health import router as health_router
 from backend.service.kb import router as kb_router
 
+
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name)
+
+    origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.include_router(health_router)
     app.include_router(kb_router)
     app.include_router(detect_router)
@@ -15,12 +26,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)

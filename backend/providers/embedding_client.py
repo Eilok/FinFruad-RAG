@@ -8,6 +8,7 @@ class EmbeddingClient:
         self.base_url = settings.siliconflow_base_url.rstrip("/")
         self.api_key = settings.siliconflow_api_key
         self.model = settings.embedding_model
+        self.timeout_seconds = float(settings.request_timeout_seconds)
 
     def embed_text(self, text: str) -> list[float]:
         if not self.api_key:
@@ -20,7 +21,7 @@ class EmbeddingClient:
         }
         payload = {"input": text, "model": self.model}
 
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=self.timeout_seconds) as client:
             resp = client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
             data = resp.json()

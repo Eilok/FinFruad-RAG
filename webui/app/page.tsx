@@ -175,9 +175,9 @@ export default function Home() {
       <header className="mb-6 card overflow-hidden">
         <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-5 text-white">
           <p className="text-xs uppercase tracking-[0.2em]">Fraud Intelligence Console</p>
-          <h1 className="mt-2 text-2xl font-semibold">FinFraud-RAG Risk Detection</h1>
+          <h1 className="mt-2 text-2xl font-semibold">FinFraud-RAG</h1>
           <p className="mt-2 text-sm text-amber-50">
-            Hybrid retrieval combines BM25 matching and semantic similarity before LLM decision.
+            Intelligent Financial Fraud Governance System, supporting: (1) Fraud text identification, (2) Fraud text analysis and upload, to realize a self-evolving risk governance system.
           </p>
         </div>
       </header>
@@ -185,7 +185,7 @@ export default function Home() {
       <section className="card p-5">
         <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-600">Knowledge Ingestion</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Add new scam texts to the vector knowledge base via direct input or file upload.
+          Add new scam texts to the knowledge base via direct input or file upload.
         </p>
 
         <div className="mt-4 grid gap-3 md:grid-cols-3">

@@ -1,152 +1,249 @@
 ﻿# FinFraud-RAG
 
-金融诈骗风险治理系统（前后端分离，持续积累诈骗知识）。
+金融诈骗风险治理系统（RAG），支持：
+- 离线知识库构建（LLM结构化抽取 + 向量入库）
+- 在线双检索判别（BM25 + 向量）
+- 前端交互（检测 + 新文本入库）
+- 自动化对比评估（RAG vs NoRAG）
 
-## 阶段进度
+## 项目结构
 
-- [x] 阶段01：项目初始化与骨架搭建
-- [x] 阶段02：离线知识库构建流水线
-- [x] 阶段03：在线双检索与判别服务
-- [x] 阶段04：前端页面与交互集成
-- [x] 阶段05：自动化评估与实验日志
-- [ ] 阶段06：统一交付与可运维性完善
+```text
+.
+├─ backend/
+│  ├─ service/                  # 仅接口层代码
+│  ├─ core/                     # 核心业务流程
+│  ├─ providers/                # LLM/Embedding适配
+│  ├─ storage/                  # Chroma封装
+│  ├─ scripts/                  # 后端脚本入口
+│  └─ outputs/eval/             # 评估产物目录
+├─ webui/                       # Next.js 前端
+├─ data/                        # 数据集
+├─ scripts/                     # Windows统一命令入口
+├─ SPECS/                       # 阶段规格文档
+└─ AGENTS.md                    # 开发规范
+```
 
-## 环境准备
+## 环境要求
 
 1. Python 3.12+
 2. Node.js 18+
 3. `uv`
 
-## 安装依赖
+## 安装与配置
 
-### 后端（uv）
+### 1) 安装依赖
+
+后端：
 
 ```bash
 uv sync
 ```
 
-### 前端（npm）
+前端：
 
 ```bash
 cd webui
 npm install
 ```
 
-## 配置环境变量
-
-复制并填写：
+### 2) 配置环境变量
 
 ```bash
 cp .env.example .env
 ```
 
-关键变量：
-- `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`
-- `SILICONFLOW_API_KEY` / `SILICONFLOW_BASE_URL` / `EMBEDDING_MODEL`
-- `CHROMA_PERSIST_DIR` / `CHROMA_COLLECTION_NAME`
-- `EVAL_COLLECTION_PREFIX`（实验隔离collection前缀）
-- `NEXT_PUBLIC_API_BASE_URL`（前端请求后端地址）
+关键变量说明：
+- `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`：LLM配置
+- `SILICONFLOW_API_KEY` / `SILICONFLOW_BASE_URL` / `EMBEDDING_MODEL`：嵌入模型配置
+- `CHROMA_PERSIST_DIR`：向量库存储目录
+- `CHROMA_COLLECTION_NAME`：线上默认collection（前端/在线检测使用）
+- `EVAL_COLLECTION_PREFIX`：评估隔离collection前缀
+- `REQUEST_TIMEOUT_SECONDS`：外部请求超时（秒）
+- `CORS_ORIGINS`：允许跨域来源，逗号分隔
+- `NEXT_PUBLIC_API_BASE_URL`：前端请求后端地址
 
-## 启动服务
+## 统一命令入口（Windows）
 
-### 启动后端
+在项目根目录执行：
 
-```bash
-uv run uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
+- 启动后端：
+
+```powershell
+./scripts/start_backend.ps1
 ```
 
-### 启动前端
+- 启动前端：
 
-```bash
-cd webui
-npm run dev
+```powershell
+./scripts/start_webui.ps1
 ```
 
-## 检索通道优化
+- 导入单条诈骗文本：
 
-- 词法检索通道使用 **BM25**。
-- BM25 query 来自用户输入分词。
-- BM25 document 为每条知识的拼接文本：`summary + patterns + risk_keywords`。
+```powershell
+./scripts/ingest_one.ps1 -Text "Limited-time investment plan, guaranteed 20% daily return" -Source manual
+```
 
-## 阶段05：自动化评估与实验日志
+- 运行全量评估：
 
-### 实验隔离模式（默认启用）
+```powershell
+./scripts/run_eval.ps1 -TestLimit 500 -TrainPositiveLimit 0 -KeywordTopK 3 -VectorTopK 3
+```
 
-评估脚本默认不会使用线上 `CHROMA_COLLECTION_NAME`，而是自动创建独立 collection：
+- 运行快速冒烟评估（1~5条）：
+
+```powershell
+./scripts/run_eval_smoke.ps1 -TestLimit 2 -TrainPositiveLimit 3
+```
+
+## 快速开始（端到端）
+
+1. 启动后端：`./scripts/start_backend.ps1`
+2. 启动前端：`./scripts/start_webui.ps1`
+3. 前端访问：`http://localhost:3000`
+4. 在前端先做 `Knowledge Ingestion`（输入或上传文本）
+5. 再在检测区执行 `Run Detection`
+
+后端健康检查：
+
+```bash
+curl http://localhost:8000/healthz
+```
+
+## 离线知识库构建
+
+### API方式
+
+`POST /kb/ingest`
+
+请求示例：
+
+```json
+{
+  "items": [
+    {
+      "text": "No experience needed, earn high commission daily, pay deposit first.",
+      "source": "manual"
+    }
+  ],
+  "retry_times": 2
+}
+```
+
+### CLI方式
+
+- 单条：
+
+```bash
+uv run python -m backend.scripts.ingest_kb --text "High return, instant transfer required" --source manual
+```
+
+- 批量（txt/jsonl）：
+
+```bash
+uv run python -m backend.scripts.ingest_kb --input-file data/sample_ingest.jsonl --source dataset --retry-times 2
+```
+
+## 在线检测（BM25 + 向量）
+
+`POST /detect`
+
+请求示例：
+
+```json
+{
+  "text": "Support asks me to transfer money now to avoid subscription charges.",
+  "keyword_top_k": 3,
+  "vector_top_k": 3,
+  "return_evidence": true
+}
+```
+
+返回：
+- `keyword_hits`（BM25通道）
+- `vector_hits`
+- `fused_hits`
+- `detection`（`is_scam/confidence/reason/evidence_refs`）
+
+说明：
+- Prompt中证据引用已使用短编号（`ref_id=1,2,3...`）以节省token。
+- 最终返回给用户的 `evidence_refs` 会映射回真实 `record_id`。
+
+## 前端功能说明
+
+前端页面支持：
+1. 新诈骗文本入库
+- 单条输入入库
+- `.txt/.jsonl` 文件上传批量入库
+2. 在线检测
+- BM25 top-k / vector top-k 参数配置
+- 检测结果与三路证据展示
+3. 交互
+- `Retry / Clear / Copy JSON`
+
+## 自动化评估与实验隔离
+
+### 默认隔离策略
+
+`run_eval` 默认使用隔离collection，不污染线上collection：
 
 - 自动命名：`{EVAL_COLLECTION_PREFIX}_{run_id}`
-- 示例：`scam_knowledge_eval_20260513_170501`
+- 可手动指定：`--collection-name`
 
-这意味着：
-- 实验重置/写入不会污染线上collection
-- 前端在线检索仍使用线上 `CHROMA_COLLECTION_NAME`
-
-### 全量评估命令
+### 全量评估
 
 ```bash
-uv run python -m backend.scripts.run_eval --test-limit 500 --keyword-top-k 3 --vector-top-k 3
+uv run python -m backend.scripts.run_eval --test-limit 500 --train-positive-limit 0 --keyword-top-k 3 --vector-top-k 3
 ```
 
-可选参数：
-- `--test-limit`：每个数据集测试样本数（默认 500）
-- `--train-positive-limit`：每个数据集用于离线构建的正样本数量；`0` 表示使用全部（默认 0）
-- `--keyword-top-k`：BM25 召回 top-k
-- `--vector-top-k`：向量召回 top-k
-- `--collection-name`：手动指定实验 collection 名（不传则自动生成隔离名）
-- `--output-dir`：指定输出目录
-
-### 快速冒烟测试入口（1-5条）
+### 冒烟评估（推荐先跑）
 
 ```bash
 uv run python -m backend.scripts.run_eval_smoke --test-limit 2 --train-positive-limit 3
 ```
 
-建议范围：
-- `--test-limit`：1~5
-- `--train-positive-limit`：1~5
+### 实时日志保证
 
-支持可选隔离名覆盖：
+评估时日志为逐条实时落盘（非结束后一次性写入）：
+- `no_rag_logs.jsonl`
+- `rag_logs.jsonl`
 
-```bash
-uv run python -m backend.scripts.run_eval_smoke --test-limit 2 --train-positive-limit 3 --collection-name my_eval_sandbox
-```
+即使中断，也能保留已完成样本记录。
 
-### 输出产物
+## 输出目录说明
 
-默认目录：`backend/outputs/eval/{run_id}/`
+- 向量库目录：`backend/.chroma/`
+- 运行日志：`backend/logs/`
+- 评估产物：`backend/outputs/eval/{run_id}/`
+  - `no_rag_logs.jsonl`
+  - `rag_logs.jsonl`
+  - `summary.json`
 
-文件说明：
-- `no_rag_logs.jsonl`：NoRAG逐条日志（实时落盘）
-- `rag_logs.jsonl`：RAG逐条日志（实时落盘）
-- `summary.json`：汇总指标与构建统计（含 `collection_name`）
+## 常见问题
 
-逐条日志字段包含：
-- `text`
-- `label`
-- `model_answer`
-- `prediction`
-- `is_correct`
-- `mode`
-- `time`
-- `retrieved_evidence`（RAG模式）
+1. 前端请求 `OPTIONS /detect` 返回 405
+- 检查 `CORS_ORIGINS` 是否包含前端域名。
 
-## 当前依赖
+2. `Collection ... does not exist`
+- 已做自愈重绑；若仍出现，请确认没有并发运行多个重置同名collection任务。
 
-后端依赖：
-- `fastapi`
-- `uvicorn[standard]`
-- `pydantic-settings`
-- `openai`
-- `httpx`
-- `chromadb`
+3. 无召回结果
+- 先确认已完成入库，并检查当前服务使用的 collection 是否正确。
 
-前端依赖：
-- `next`
-- `react`
-- `react-dom`
-- `tailwindcss`
-- `typescript`
+4. 模型调用失败
+- 检查 API key、base URL、model 名称、网络可达性。
 
-## 下一阶段
+## 发布前最小检查清单
 
-进入阶段06：统一交付与可运维性完善。
+1. `uv sync` 成功且依赖一致。
+2. `.env` 必填项已配置。
+3. 后端 `healthz` 正常。
+4. 前端可完成一次入库 + 一次检测。
+5. 冒烟评估可跑通并生成 `summary.json`。
+6. 实验collection与线上collection隔离验证通过。
+
+## 当前版本状态
+
+- 阶段01-05已完成
+- 阶段06（统一交付与可运维性完善）已完成基础收口

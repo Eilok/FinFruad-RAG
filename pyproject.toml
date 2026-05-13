@@ -1,7 +1,7 @@
-[project]
+﻿[project]
 name = "finfraud-rag"
 version = "0.1.0"
-description = "金融诈骗风险治理系统（RAG）"
+description = "Financial fraud risk governance system with RAG"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

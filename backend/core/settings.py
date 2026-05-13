@@ -24,6 +24,10 @@ class Settings(BaseSettings):
 
     ingest_retry_times: int = 2
 
+    request_timeout_seconds: int = 60
+
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     log_level: str = "INFO"
     log_dir: str = "./backend/logs"
 
