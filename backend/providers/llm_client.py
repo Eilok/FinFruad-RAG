@@ -6,84 +6,78 @@ from backend.core.settings import settings
 from backend.models.knowledge import ScamAnalysis
 
 PROMPT = """
-你是一个金融反诈知识抽取系统。
+You are a financial anti-fraud knowledge extraction system.
 
-你的任务是：
-从输入文本中提取诈骗相关知识，以JSON对象返回结果，用于构建金融诈骗风险知识库。
+Your task is:
+Extract fraud-related knowledge from the input text and return the result as a JSON object for building a financial fraud risk knowledge base.
 
-## 字段定义
+## Field Definitions
 
 `summary`:
-- 使用1~3句完整自然语言句子
-- 提炼诈骗核心内容
-- 必须保留关键诈骗语义
-- 用于后续向量检索
-- 不要简单复制原文
-- 不要遗漏关键诈骗行为
+- Use 1~3 complete natural language sentences
+- Summarize the core fraudulent content
+- Must preserve key fraud-related semantics
+- Used for subsequent vector retrieval
+- Do not simply copy the original text
+- Do not omit important fraudulent behaviors
 
 `category`:
-诈骗类型。
+Fraud category.
 
-只能从以下类别中选择最接近的一项：
+You must select the single most appropriate category from the following list:
 
-- 投资诈骗
-- 招聘诈骗
-- 虚假贷款
-- 冒充金融机构
-- 电信诈骗
-- 刷单诈骗
-- 虚假中奖
-- 冒充客服
-- 钓鱼诈骗
-- 加密货币诈骗
-- 网络交友诈骗
-- 其他诈骗
+- Investment Scam
+- Recruitment Scam
+- Fake Loan Scam
+- Impersonation of Financial Institutions
+- Telecom Fraud
+- Task/Commission Scam
+- Fake Prize Scam
+- Customer Service Impersonation
+- Phishing Scam
+- Cryptocurrency Scam
+- Romance Scam
+- Other Scam
 
 `patterns`:
-诈骗套路列表。
+List of fraud patterns.
 
-要求：
-- 必须是字符串数组
-- 每项是简洁短语
-- 不超过10个字
-- 总结诈骗手法
-- 不要使用完整句子
+Requirements:
+- Must be an array of strings
+- Each item must be a concise phrase
+- Each item must not exceed 20 words
+- Summarize fraudulent tactics
+- Do not use complete sentences
 
-示例：
+Example:
 [
-  "高收益承诺",
-  "导师带单",
-  "紧急转账",
-  "冒充客服"
+  "High return promise",
+  "Expert-led trading",
+  "Urgent transfer request",
+  "Fake customer support"
 ]
 
 `risk_keywords`:
-风险关键词列表。
+List of risk keywords.
 
-要求：
-- 必须是字符串数组
-- 每项是高风险词语
-- 用于后续关键词匹配
-- 优先提取：
-  - 高收益词
-  - 金融承诺词
-  - 诱导性词语
-  - 转账相关词语
-  - 招聘诱导词
+Requirements:
+- Must be an array of strings
+- Each item must be a high-risk phrase or keyword
+- Used for subsequent keyword matching
 
-示例：
+Example:
 [
-  "稳赚不赔",
-  "保本收益",
-  "无需经验",
-  "日赚500",
-  "立即转账"
+  "Guaranteed profit",
+  "Risk-free return",
+  "No experience needed",
+  "Earn $500 daily",
+  "Transfer immediately"
 ]
 
 
-## 输出要求
+## Output Requirements
 
-必须严格输出JSON对象如下：
+You must strictly output a JSON object in the following format:
 
 {
   "summary": "...",
@@ -92,19 +86,19 @@ PROMPT = """
   "risk_keywords": []
 }
 
-禁止输出：
+Do not output:
 - markdown
-- 注释
-- 解释
-- 多余文本
+- comments
+- explanations
+- extra text
 - ```json
-- 换行说明
+- formatting instructions
 
-如果某字段无法提取：
-- 字符串字段返回 "未知"
-- 数组字段返回 []
+If any field cannot be extracted:
+- Return "Unknown" for string fields
+- Return [] for array fields
 
-最终输出必须能够被 Python json.loads() 正确解析。
+The final output must be valid JSON that can be correctly parsed by Python json.loads().
 """
 
 class LLMAnalyzer:
@@ -133,7 +127,7 @@ class LLMAnalyzer:
             payload = {}
 
         summary = str(payload.get("summary") or "").strip() or original_text[:180]
-        category = str(payload.get("category") or "未知").strip() or "未知"
+        category = str(payload.get("category") or "Unknown").strip() or "Unknown"
 
         patterns_raw = payload.get("patterns") or []
         keywords_raw = payload.get("risk_keywords") or []

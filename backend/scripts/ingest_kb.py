@@ -25,17 +25,17 @@ def load_items(text: str | None, input_file: str | None, source: str) -> list[In
                 items.append(IngestItem(text=content, source=source))
 
     if not items:
-        raise ValueError("未提供可导入文本，请使用 --text 或 --input-file")
+        raise ValueError("No ingestible text provided. Use --text or --input-file")
 
     return items
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="离线诈骗知识库构建脚本")
-    parser.add_argument("--text", type=str, default=None, help="单条文本")
-    parser.add_argument("--input-file", type=str, default=None, help="批量输入文件，支持jsonl或纯文本")
-    parser.add_argument("--source", type=str, default="manual", help="数据来源标识")
-    parser.add_argument("--retry-times", type=int, default=None, help="重试次数")
+    parser = argparse.ArgumentParser(description="Offline fraud knowledge base ingestion script")
+    parser.add_argument("--text", type=str, default=None, help="Single input text")
+    parser.add_argument("--input-file", type=str, default=None, help="Batch input file: jsonl or plain text lines")
+    parser.add_argument("--source", type=str, default="manual", help="Source tag")
+    parser.add_argument("--retry-times", type=int, default=None, help="Retry attempts")
     args = parser.parse_args()
 
     items = load_items(args.text, args.input_file, args.source)

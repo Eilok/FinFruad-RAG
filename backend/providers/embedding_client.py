@@ -11,7 +11,7 @@ class EmbeddingClient:
 
     def embed_text(self, text: str) -> list[float]:
         if not self.api_key:
-            raise ValueError("SILICONFLOW_API_KEY 未配置")
+            raise ValueError("SILICONFLOW_API_KEY is not configured")
 
         url = f"{self.base_url}/embeddings"
         headers = {
@@ -27,8 +27,8 @@ class EmbeddingClient:
 
         items = data.get("data") or []
         if not items:
-            raise ValueError("Embedding 接口返回为空")
+            raise ValueError("Embedding API returned an empty result")
         vector = items[0].get("embedding")
         if not isinstance(vector, list) or not vector:
-            raise ValueError("Embedding 向量格式非法")
+            raise ValueError("Invalid embedding vector format")
         return [float(v) for v in vector]

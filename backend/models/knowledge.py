@@ -3,7 +3,7 @@
 
 class ScamAnalysis(BaseModel):
     summary: str = Field(default="")
-    category: str = Field(default="未知")
+    category: str = Field(default="Unknown")
     patterns: list[str] = Field(default_factory=list)
     risk_keywords: list[str] = Field(default_factory=list)
 
