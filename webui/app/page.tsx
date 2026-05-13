@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { detectRisk } from "@/lib/detect-api";
+import { ingestKnowledge } from "@/lib/kb-api";
 import type { DetectResponse, EvidenceItem } from "@/types/detect";
+import type { IngestItem, IngestResponse } from "@/types/ingest";
 
 type RequestOptions = {
   keywordTopK: number;
@@ -42,9 +44,6 @@ function EvidenceList({ title, items }: { title: string; items: EvidenceItem[] }
               <p className="mt-2 text-sm text-slate-800">{item.summary}</p>
               <p className="mt-2 text-xs text-slate-600">Patterns: {item.patterns.join(", ") || "-"}</p>
               <p className="mt-1 text-xs text-slate-600">Risk keywords: {item.risk_keywords.join(", ") || "-"}</p>
-              {item.matched_keywords.length > 0 && (
-                <p className="mt-1 text-xs text-amber-700">Matched keywords: {item.matched_keywords.join(", ")}</p>
-              )}
             </li>
           ))}
         </ul>
@@ -59,6 +58,13 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [result, setResult] = useState<DetectResponse | null>(null);
+
+  const [ingestText, setIngestText] = useState("");
+  const [ingestSource, setIngestSource] = useState("manual_upload");
+  const [ingestRetryTimes, setIngestRetryTimes] = useState(2);
+  const [ingestLoading, setIngestLoading] = useState(false);
+  const [ingestError, setIngestError] = useState("");
+  const [ingestResult, setIngestResult] = useState<IngestResponse | null>(null);
 
   useEffect(() => {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify({ text, options, result }));
@@ -98,6 +104,72 @@ export default function Home() {
     await navigator.clipboard.writeText(JSON.stringify(result, null, 2));
   }
 
+  async function onIngestSingleText() {
+    const trimmed = ingestText.trim();
+    if (!trimmed) {
+      setIngestError("Please enter scam text before ingestion.");
+      return;
+    }
+
+    setIngestLoading(true);
+    setIngestError("");
+    try {
+      const payload = {
+        items: [{ text: trimmed, source: ingestSource.trim() || "manual_upload" }],
+        retry_times: ingestRetryTimes,
+      };
+      const data = await ingestKnowledge(payload);
+      setIngestResult(data);
+      setIngestText("");
+    } catch (err) {
+      setIngestError(err instanceof Error ? err.message : "Ingestion request failed");
+    } finally {
+      setIngestLoading(false);
+    }
+  }
+
+  async function onUploadFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIngestLoading(true);
+    setIngestError("");
+    try {
+      const content = await file.text();
+      const lines = content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+
+      const items: IngestItem[] = [];
+      for (const line of lines) {
+        if (line.startsWith("{")) {
+          const obj = JSON.parse(line) as { text?: string; source?: string };
+          const parsedText = (obj.text || "").trim();
+          if (!parsedText) continue;
+          items.push({
+            text: parsedText,
+            source: (obj.source || ingestSource || "manual_upload").trim(),
+          });
+        } else {
+          items.push({ text: line, source: ingestSource.trim() || "manual_upload" });
+        }
+      }
+
+      if (items.length === 0) {
+        throw new Error("Uploaded file contains no valid text items.");
+      }
+
+      const data = await ingestKnowledge({
+        items,
+        retry_times: ingestRetryTimes,
+      });
+      setIngestResult(data);
+    } catch (err) {
+      setIngestError(err instanceof Error ? err.message : "Failed to parse or ingest file");
+    } finally {
+      event.target.value = "";
+      setIngestLoading(false);
+    }
+  }
+
   return (
     <main className="mx-auto w-full max-w-6xl p-6 md:p-10">
       <header className="mb-6 card overflow-hidden">
@@ -111,6 +183,82 @@ export default function Home() {
       </header>
 
       <section className="card p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-600">Knowledge Ingestion</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Add new scam texts to the vector knowledge base via direct input or file upload.
+        </p>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <label className="text-sm text-slate-700 md:col-span-2">
+            Source tag
+            <input
+              type="text"
+              value={ingestSource}
+              onChange={(e) => setIngestSource(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-amber-500"
+              placeholder="manual_upload"
+            />
+          </label>
+          <label className="text-sm text-slate-700">
+            Retry times
+            <input
+              type="number"
+              min={0}
+              max={5}
+              value={ingestRetryTimes}
+              onChange={(e) => setIngestRetryTimes(Math.max(0, Math.min(5, Number(e.target.value) || 0)))}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-amber-500"
+            />
+          </label>
+        </div>
+
+        <label htmlFor="ingest-text" className="mt-4 block text-sm font-semibold text-slate-700">
+          Single scam text
+        </label>
+        <textarea
+          id="ingest-text"
+          value={ingestText}
+          onChange={(e) => setIngestText(e.target.value)}
+          rows={4}
+          className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+          placeholder="Enter a scam-related text to ingest..."
+        />
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onIngestSingleText}
+            disabled={ingestLoading}
+            className="cursor-pointer rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300"
+          >
+            {ingestLoading ? "Ingesting..." : "Ingest Single Text"}
+          </button>
+
+          <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">
+            Upload txt/jsonl
+            <input type="file" accept=".txt,.jsonl" onChange={onUploadFile} className="hidden" />
+          </label>
+        </div>
+
+        {ingestError && (
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+            {ingestError}
+          </p>
+        )}
+
+        {ingestResult && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            <p>
+              Ingest result: total={ingestResult.total}, success={ingestResult.success}, failed={ingestResult.failed}
+            </p>
+            {ingestResult.errors.length > 0 && (
+              <p className="mt-1 text-red-700">Errors: {ingestResult.errors.slice(0, 3).join(" | ")}</p>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="mt-6 card p-5">
         <label htmlFor="input-text" className="text-sm font-semibold text-slate-700">
           Input text for risk analysis
         </label>
