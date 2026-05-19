@@ -20,6 +20,8 @@ export type IngestResponse = {
   total: number;
   success: number;
   failed: number;
+  skipped: number;
   results: IngestResult[];
   errors: string[];
+  skipped_messages: string[];
 };

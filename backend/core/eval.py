@@ -21,6 +21,7 @@ class EvaluationRunner:
         vector_top_k: int,
         train_positive_limit: int = 0,
         collection_name: str | None = None,
+        include_no_rag: bool = True,
     ) -> None:
         self.output_dir = output_dir
         self.test_limit = test_limit
@@ -28,6 +29,7 @@ class EvaluationRunner:
         self.vector_top_k = vector_top_k
         self.train_positive_limit = train_positive_limit
         self.collection_name = collection_name
+        self.include_no_rag = include_no_rag
 
         self.llm = LLMAnalyzer()
         self.detect_pipeline = DetectPipeline(collection_name=collection_name)
@@ -44,6 +46,12 @@ class EvaluationRunner:
         build_stats = self._build_offline_kb()
         no_rag_records, rag_records = self._evaluate_all()
 
+        metrics: dict[str, Any] = {
+            "rag": self._metrics_report(rag_records),
+        }
+        if self.include_no_rag:
+            metrics["no_rag"] = self._metrics_report(no_rag_records)
+
         report = {
             "run_time": now_iso(),
             "test_limit_per_dataset": self.test_limit,
@@ -52,16 +60,16 @@ class EvaluationRunner:
             "vector_top_k": self.vector_top_k,
             "collection_name": self.store.collection_name,
             "build": build_stats,
-            "metrics": {
-                "no_rag": self._metrics_report(no_rag_records),
-                "rag": self._metrics_report(rag_records),
-            },
+            "metrics": metrics,
         }
         (self.output_dir / "summary.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         return report
 
     def _init_live_logs(self) -> None:
-        for filename in ("no_rag_logs.jsonl", "rag_logs.jsonl"):
+        files = ["rag_logs.jsonl"]
+        if self.include_no_rag:
+            files.append("no_rag_logs.jsonl")
+        for filename in files:
             path = self.output_dir / filename
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("", encoding="utf-8")
@@ -82,12 +90,14 @@ class EvaluationRunner:
                 if text:
                     all_items.append(IngestItem(text=text, source=f"{name}:train"))
 
-        results, errors = self.ingest_pipeline.ingest_items(all_items)
+        results, errors, skipped_messages = self.ingest_pipeline.ingest_items(all_items)
         return {
             "total_input": len(all_items),
             "success": len(results),
             "failed": len(errors),
+            "skipped": len(skipped_messages),
             "errors": errors,
+            "skipped_messages": skipped_messages,
             "per_dataset_input": per_dataset_counts,
             "chroma_count": self.store.count(),
         }
@@ -106,18 +116,19 @@ class EvaluationRunner:
                     continue
                 label = int(row.get("label", 0))
 
-                no_rag = self._safe_no_rag_detect(text)
-                no_rag_row = self._build_log_row(
-                    dataset=name,
-                    index=idx,
-                    mode="NoRAG",
-                    text=text,
-                    label=label,
-                    detection=no_rag,
-                    evidence=[],
-                )
-                no_rag_records.append(no_rag_row)
-                self._append_jsonl(self.output_dir / "no_rag_logs.jsonl", no_rag_row)
+                if self.include_no_rag:
+                    no_rag = self._safe_no_rag_detect(text)
+                    no_rag_row = self._build_log_row(
+                        dataset=name,
+                        index=idx,
+                        mode="NoRAG",
+                        text=text,
+                        label=label,
+                        detection=no_rag,
+                        evidence=[],
+                    )
+                    no_rag_records.append(no_rag_row)
+                    self._append_jsonl(self.output_dir / "no_rag_logs.jsonl", no_rag_row)
 
                 rag_resp = self.detect_pipeline.run(
                     DetectRequest(

@@ -249,8 +249,13 @@ export default function Home() {
         {ingestResult && (
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
             <p>
-              Ingest result: total={ingestResult.total}, success={ingestResult.success}, failed={ingestResult.failed}
+              Ingest result: total={ingestResult.total}, success={ingestResult.success}, failed={ingestResult.failed}, skipped={ingestResult.skipped}
             </p>
+            {ingestResult.skipped > 0 && (
+              <p className="mt-1 text-amber-700">
+                Some items were skipped: no scam information extracted.
+              </p>
+            )}
             {ingestResult.errors.length > 0 && (
               <p className="mt-1 text-red-700">Errors: {ingestResult.errors.slice(0, 3).join(" | ")}</p>
             )}

@@ -16,17 +16,40 @@ class IngestPipeline:
         self.embedder = EmbeddingClient()
         self.store = ChromaKnowledgeStore(collection_name=collection_name)
 
-    def ingest_items(self, items: Iterable[IngestItem], retry_times: int | None = None) -> tuple[list[IngestResult], list[str]]:
+    def ingest_items(
+        self,
+        items: Iterable[IngestItem],
+        retry_times: int | None = None,
+    ) -> tuple[list[IngestResult], list[str], list[str]]:
         retries = settings.ingest_retry_times if retry_times is None else retry_times
         results: list[IngestResult] = []
         errors: list[str] = []
+        skipped_messages: list[str] = []
 
         for item in items:
             ok = False
             last_error = ""
             for attempt in range(retries + 1):
                 try:
-                    result = self._process_one(item)
+                    result, skip_reason = self._process_one(item)
+                    if skip_reason:
+                        skipped_messages.append(skip_reason)
+                        append_jsonl(
+                            "ingest.jsonl",
+                            {
+                                "time": now_iso(),
+                                "status": "skipped",
+                                "source": item.source,
+                                "reason": skip_reason,
+                            },
+                        )
+                        ok = True
+                        break
+
+                    if result is None:
+                        last_error = f"source={item.source}, attempt={attempt + 1}, error=Unexpected empty ingestion result"
+                        continue
+
                     results.append(result)
                     append_jsonl(
                         "ingest.jsonl",
@@ -57,10 +80,13 @@ class IngestPipeline:
                     },
                 )
 
-        return results, errors
+        return results, errors, skipped_messages
 
-    def _process_one(self, item: IngestItem) -> IngestResult:
+    def _process_one(self, item: IngestItem) -> tuple[IngestResult | None, str | None]:
         analysis = self.llm.analyze(item.text)
+        if not analysis.risk_keywords:
+            return None, "No scam information extracted; skipped from knowledge base."
+
         embedding = self.embedder.embed_text(analysis.summary)
 
         record = KnowledgeRecord(
@@ -72,10 +98,13 @@ class IngestPipeline:
         )
         self.store.upsert_record(record, embedding)
 
-        return IngestResult(
-            record_id=record.record_id,
-            source=record.source,
-            summary=record.analysis.summary,
-            category=record.analysis.category,
-            risk_keywords=record.analysis.risk_keywords,
+        return (
+            IngestResult(
+                record_id=record.record_id,
+                source=record.source,
+                summary=record.analysis.summary,
+                category=record.analysis.category,
+                risk_keywords=record.analysis.risk_keywords,
+            ),
+            None,
         )

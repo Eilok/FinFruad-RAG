@@ -23,8 +23,10 @@ class IngestResponse(BaseModel):
     total: int
     success: int
     failed: int
+    skipped: int = 0
     results: list[IngestResult]
     errors: list[str]
+    skipped_messages: list[str] = Field(default_factory=list)
 
 
 class DetectRequest(BaseModel):
