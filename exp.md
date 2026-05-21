@@ -12,9 +12,82 @@
 
 ## 2. 数据集与样本划分
 
-实验使用 `data/` 目录下两套数据集：
+### DIFrauD数据集介绍
+DIFrauD - Domain Independent Fraud Detection Benchmark
+Domain Independent Fraud Detection Benchmark is a labeled corpus containing over 95,854 samples of deceitful and truthful texts from a number of independent domains and tasks. Deception, however, can be different -- in this corpus we made sure to gather strictly real examples of deception that are intentionally malicious and cause real harm, despite them often having very little in common. Covering seven domains, this benchmark is designed to serve as a representative slice of the various security challenges that remain open problems today.
 
-1. `job_scams`
+DATASET
+The entire dataset contains 95854 samples, 37282 are deceptive and 58572 non-deceptive.
+
+There are 7 independent domains in the dataset.
+
+Each task is (or has been converted to) a binary classification problem where y is an indicator of deception.
+
+Phishing (2020 Email phishing benchmark with manually labeled emails)
+
+- total: 15272 deceptive: 6074 non-deceptive: 9198
+
+Fake News (News Articles)
+
+- total: 20456 deceptive: 8832 non-deceptive: 11624
+
+Political Statements (Claims and statements by politicians and other entities, made from Politifact by relabeling LIAR)
+
+- total: 12497 deceptive: 8042 non-deceptive: 4455
+
+Product Reviews (Amazon product reviews)
+
+- total: 20971 deceptive: 10492 non-deceptive: 10479
+
+Job Scams (Job postings on an online board)
+
+- total: 14295 deceptive: 599 non-deceptive: 13696
+
+SMS (combination of SMS Spam from UCI repository and SMS Phishing datasets)
+
+- total: 6574 deceptive: 1274 non-deceptive: 5300
+
+Twitter Rumours (Collection of rumours from PHEME dataset, covers multiple topics)
+
+- total: 5789 deceptive: 1969 non-deceptive: 3820
+
+Each one was constructed from one or more datasets. Some tasks were not initially binary and had to be relabeled. The inputs vary wildly both stylistically and syntactically, as well as in terms of the goal of deception (or absence of thereof) being performed in the context of each dataset. Nonetheless, all seven datasets contain a significant fraction of texts that are meant to deceive the person reading them one way or another.
+
+Each subdirectory/config contains the domain/individual dataset split into three files:
+
+train.jsonl, test.jsonl, and validation.jsonl
+
+that contain train, test, and validation sets, respectively.
+
+The splits are:
+
+-- train=80%
+
+-- test=10%
+
+-- valid=10%
+
+The sampling process was random with seed=42. It was stratified with respect to y (label) for each domain.
+
+Fields
+Each jsonl file has two fields (columns): text (string) and label (integer)
+
+text contains a statement or a claim that is either deceptive or thruthful. It is guaranteed to be valid unicode, less than 1 million characters, and contains no empty entries or non-values.
+
+label answers the question whether text is deceptive: 1 means yes, it is deceptive, 0 means no, the text is not deceptive (it is truthful).
+
+Processing and Cleaning
+Each dataset has been cleaned using Cleanlab. Non-english entries, erroneous (parser error) entries, empty entries, duplicate entries, entries of length less than 2 characters or exceeding 1000000 characters were all removed.
+
+Labels were manually curated and corrected in cases of clear error.
+
+Whitespace, quotes, bulletpoints, unicode is normalized.
+
+### 处理
+
+实验使用 `DIFrauD` 数据集下两套数据集：
+
+1. `job scams`
 2. `sms`
 
 每套数据均包含：
@@ -121,57 +194,7 @@
 
 ---
 
-## 5. 实验隔离机制
-
-为避免污染线上知识库，评估默认使用隔离 collection：
-
-- 默认命名：`{EVAL_COLLECTION_PREFIX}_{run_id}`
-- 可通过 `--collection-name` 显式指定
-
-线上前端/服务继续使用 `CHROMA_COLLECTION_NAME`，与实验集合隔离。
-
----
-
-## 6. 日志与产物
-
-### 6.1 输出目录
-
-不同实验脚本对应目录：
-
-- 对比实验：`backend/outputs/eval/{run_id}/`
-- RAG-only：`backend/outputs/rag_eval/{run_id}/`
-- NoRAG-only：`backend/outputs/no_rag_eval/{run_id}/`
-
-### 6.2 日志文件
-
-可能包含：
-- `no_rag_logs.jsonl`
-- `rag_logs.jsonl`
-- `summary.json`
-
-### 6.3 逐条日志字段
-
-逐条记录至少包含：
-- `time`
-- `dataset`
-- `sample_index`
-- `mode`（NoRAG / RAG）
-- `text`
-- `label`
-- `model_answer`（`is_scam/confidence/reason/evidence_refs`）
-- `prediction`
-- `is_correct`
-- `retrieved_evidence`（RAG 模式）
-
-### 6.4 实时落盘
-
-评估日志采用“逐条样本完成即写入”策略：
-- 进程中断时仍保留已完成样本结果
-- 降低长时实验丢失风险
-
----
-
-## 7. 评估指标
+## 5. 评估指标
 
 项目统一输出二分类指标：
 
@@ -191,7 +214,7 @@
 
 ---
 
-## 8. 指标计算定义
+## 6. 指标计算定义
 
 设正类为诈骗（label=1）：
 
@@ -209,57 +232,3 @@
 
 当分母为0时，代码中按 `0.0` 处理。
 
----
-
-## 9. 复现实验命令
-
-### 9.1 对比实验（NoRAG vs RAG）
-
-```bash
-uv run python -m backend.scripts.run_eval --test-limit 500 --train-positive-limit 0 --keyword-top-k 3 --vector-top-k 3
-```
-
-### 9.2 RAG-only 实验
-
-```bash
-uv run python -m backend.scripts.run_rag_eval --test-limit 500 --train-positive-limit 0 --keyword-top-k 3 --vector-top-k 3
-```
-
-### 9.3 NoRAG-only 实验
-
-```bash
-uv run python -m backend.scripts.run_no_rag_eval --test-limit 500
-```
-
-### 9.4 冒烟实验（快速检查）
-
-```bash
-uv run python -m backend.scripts.run_eval_smoke --test-limit 2 --train-positive-limit 3
-```
-
----
-
-## 10. 实验结果解读建议
-
-1. 先比较 `overall`：观察 RAG 相比 NoRAG 是否有稳定增益；
-2. 再看 `by_dataset`：判断不同语料域（招聘诈骗/SMS）是否存在表现差异；
-3. 关注 `FP/FN` 结构：
-   - `FP` 高：误报较多
-   - `FN` 高：漏报较多
-4. 结合 `rag_logs.jsonl` 中 `retrieved_evidence` 分析：
-   - 是否召回了语义相关证据
-   - 证据是否能支持模型判别理由
-5. 结合构建统计中的 `skipped`：
-   - 过滤比例过高可能导致知识覆盖不足
-   - 过滤比例过低可能引入噪声知识
-
----
-
-## 11. 方法与实验一致性说明
-
-本项目实验与线上方法链路一致：
-- 同一入库流水线（含过滤）
-- 同一检索与融合逻辑
-- 同一判别输出结构
-
-因此实验指标可直接用于指导线上策略调整（如 top-k、融合权重、过滤阈值、提示词策略等）。

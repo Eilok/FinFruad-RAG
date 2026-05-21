@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-m3"
 
     chroma_persist_dir: str = "./backend/.chroma"
-    chroma_collection_name: str = "scam_knowledge"
+    chroma_collection_name: str = "scam_knowledge_eval"
     eval_collection_prefix: str = "scam_knowledge_eval"
 
     default_keyword_top_k: int = 3
