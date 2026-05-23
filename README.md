@@ -6,6 +6,8 @@ A financial fraud risk governance system (RAG) that supports:
 - Frontend interaction (detection + new text ingestion)
 - Automated comparative evaluation (RAG vs NoRAG)
 
+![webui](images/overview.png)
+
 ## Project Structure
 
 ```text
@@ -176,11 +178,19 @@ The frontend supports:
 1. New fraud text ingestion
 - Single-text ingestion
 - Batch ingestion by uploading `.txt/.jsonl`
+
+![ingest](images/ingest.png)
+
 2. Online detection
 - BM25 top-k / vector top-k parameter configuration
 - Detection results and three-channel evidence display
+
+![retrieval](images/retrieval.png)
+
 3. Interaction
 - `Retry / Clear / Copy JSON`
+
+
 
 ## Automated Evaluation and Experiment Isolation
 
