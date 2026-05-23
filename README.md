@@ -21,9 +21,7 @@ A financial fraud risk governance system (RAG) that supports:
 │  └─ outputs/eval/             # Evaluation artifacts
 ├─ webui/                       # Next.js frontend
 ├─ data/                        # Datasets
-├─ scripts/                     # Unified Windows command entrypoints
-├─ SPECS/                       # Phase specification docs
-└─ AGENTS.md                    # Development conventions
+└─  scripts/                     # Unified Windows command entrypoints
 ```
 
 ## Requirements
